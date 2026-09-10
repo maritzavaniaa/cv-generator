@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Auto-Generate CV
 
-## Getting Started
+**Phase 0 — Foundation & Local Walking Skeleton.**
 
-First, run the development server:
+This phase only validates the local pipeline `Next.js → Prisma → Neon` and basic
+project quality (lint / typecheck / build). No product features (auth, library,
+builder, PDF export) are implemented yet.
+
+## Prerequisites
+
+- Node.js 22+
+- npm
+- A [Neon](https://neon.tech) account (free tier) with a Postgres project
+
+## Installation
+
+```bash
+npm install
+```
+
+## Environment Setup
+
+Copy the example env file and fill in your Neon connection string:
+
+```bash
+cp .env.example .env
+```
+
+Set `DATABASE_URL` in `.env` to your Neon project's connection string (found in
+the Neon dashboard under Connection Details). Never commit `.env` — it is
+already git-ignored.
+
+## Prisma
+
+Generate the Prisma Client:
+
+```bash
+npx prisma generate
+```
+
+Apply the initial migration to your database:
+
+```bash
+npx prisma migrate dev
+```
+
+## Development
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). The landing page shows
+"Database Connected" once Prisma can reach Neon. You can also check
+[http://localhost:3000/api/health](http://localhost:3000/api/health) directly.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Quality Checks
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run lint
+npx tsc --noEmit
+npm run build
+```
 
-## Learn More
+All three must pass before any change is considered done.
 
-To learn more about Next.js, take a look at the following resources:
+## CI
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`.github/workflows/ci.yml` runs install, lint, typecheck, and build on every
+push/PR. It only runs **after you manually push to GitHub** — this repository
+does not push, commit, or open PRs on its own; all Git operations are done by
+hand by the maintainer.

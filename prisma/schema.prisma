@@ -1,0 +1,102 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// -----------------------------------------------------------------------------
+// Phase 0 scope decision (see Task 3 in the Phase 0 spec):
+//
+// Option B was chosen — this file defines ONLY the domain schema (User,
+// LibraryItem, CvLineage, CvVersion). Auth.js v5 + PrismaAdapter models
+// (Account, Session, VerificationToken) are intentionally deferred to Phase 1.
+//
+// Why this does not create migration debt:
+//   - Auth.js's PrismaAdapter models are additive: they are new tables that
+//     reference User by id. Adding them in Phase 1 is a pure "add table" +
+//     "add relation array field on User" migration — it never requires
+//     altering or dropping any column defined here.
+//   - `google_id` already exists on User today, so the Phase 1 signIn
+//     callback can match/create users against it immediately; Auth.js does
+//     not require a specific extra column to function.
+//   - The table is empty at the end of Phase 0 (no auth flow exists yet to
+//     populate it), so there is no data-migration risk either.
+// -----------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  googleId  String   @unique @map("google_id")
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  libraryItems LibraryItem[]
+  cvLineages   CvLineage[]
+
+  @@map("users")
+}
+
+model LibraryItem {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Plain string (not an enum) on purpose — NFR-7 requires adding a new
+  // section category without a heavy migration; an enum would need
+  // ALTER TYPE for every new value.
+  sectionType String @map("section_type")
+
+  title     String
+  subtitle  String?
+  startDate DateTime  @map("start_date")
+  endDate   DateTime? @map("end_date")
+  bullets   Json
+
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("library_items")
+}
+
+model CvLineage {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  label  String
+  target String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  versions CvVersion[]
+
+  @@index([userId])
+  @@map("cv_lineages")
+}
+
+model CvVersion {
+  id        String    @id @default(uuid())
+  lineageId String    @map("lineage_id")
+  lineage   CvLineage @relation(fields: [lineageId], references: [id], onDelete: Cascade)
+
+  versionNumber   Int    @map("version_number")
+  templateId      String @map("template_id")
+  snapshot        Json
+  selectedItemIds Json   @map("selected_item_ids")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([lineageId, versionNumber])
+  @@index([lineageId])
+  @@map("cv_versions")
+}
