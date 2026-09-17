@@ -1,10 +1,8 @@
 # Auto-Generate CV
 
-**Phase 0 — Foundation & Local Walking Skeleton.**
-
-This phase only validates the local pipeline `Next.js → Prisma → Neon` and basic
-project quality (lint / typecheck / build). No product features (auth, library,
-builder, PDF export) are implemented yet.
+**Phase 1 — Authentication.** Google OAuth via Auth.js, with a minimal
+protected `/dashboard`. Library, builder, CV versioning, and PDF export are
+still not implemented.
 
 ## Prerequisites
 
@@ -30,6 +28,33 @@ Set `DATABASE_URL` in `.env` to your Neon project's connection string (found in
 the Neon dashboard under Connection Details). Never commit `.env` — it is
 already git-ignored.
 
+## Auth Setup
+
+Generate a session secret:
+
+```bash
+openssl rand -base64 33
+```
+
+Set it as `AUTH_SECRET` in `.env`.
+
+### Google Cloud Console
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials.
+2. Create an **OAuth 2.0 Client ID** (Application type: **Web application**).
+3. Under **Authorized JavaScript origins**, add:
+   ```
+   http://localhost:3000
+   ```
+4. Under **Authorized redirect URIs**, add:
+   ```
+   http://localhost:3000/api/auth/callback/google
+   ```
+5. Copy the generated **Client ID** and **Client Secret** into `.env` as
+   `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+
+Production URLs are not configured yet — deployment is a later phase.
+
 ## Prisma
 
 Generate the Prisma Client:
@@ -53,6 +78,10 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000). The landing page shows
 "Database Connected" once Prisma can reach Neon. You can also check
 [http://localhost:3000/api/health](http://localhost:3000/api/health) directly.
+
+Sign in at [http://localhost:3000/login](http://localhost:3000/login) with
+Google. `/dashboard` requires an authenticated session and redirects to
+`/login` otherwise.
 
 ## Quality Checks
 

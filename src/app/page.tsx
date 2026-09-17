@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +15,9 @@ async function isDatabaseConnected() {
 }
 
 export default async function Home() {
+  const session = await auth();
+  if (session?.user) redirect("/dashboard");
+
   const connected = await isDatabaseConnected();
 
   return (
@@ -21,6 +27,12 @@ export default async function Home() {
       {connected && (
         <p className="text-sm text-emerald-600">Database Connected</p>
       )}
+      <Link
+        href="/login"
+        className="mt-3 inline-flex items-center gap-2 rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium transition-colors hover:bg-neutral-50"
+      >
+        Sign in
+      </Link>
     </main>
   );
 }

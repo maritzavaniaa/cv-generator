@@ -2,22 +2,35 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 // -----------------------------------------------------------------------------
-// Phase 0 scope decision (see Task 3 in the Phase 0 spec):
+// Phase 1 update — Auth.js v5 + @auth/prisma-adapter:
 //
-// Option B was chosen — this file defines ONLY the domain schema (User,
-// LibraryItem, CvLineage, CvVersion). Auth.js v5 + PrismaAdapter models
-// (Account, Session, VerificationToken) are intentionally deferred to Phase 1.
+// Added Account, Session, VerificationToken (the adapter's required models,
+// verified against @auth/prisma-adapter@2.11.3's own source and the official
+// Auth.js Prisma schema). No Authenticator model — that's only needed for the
+// WebAuthn provider, which this project doesn't use (Google OAuth only).
 //
-// Why this does not create migration debt:
-//   - Auth.js's PrismaAdapter models are additive: they are new tables that
-//     reference User by id. Adding them in Phase 1 is a pure "add table" +
-//     "add relation array field on User" migration — it never requires
-//     altering or dropping any column defined here.
-//   - `google_id` already exists on User today, so the Phase 1 signIn
-//     callback can match/create users against it immediately; Auth.js does
-//     not require a specific extra column to function.
-//   - The table is empty at the end of Phase 0 (no auth flow exists yet to
-//     populate it), so there is no data-migration risk either.
+// User changes:
+//   - Added `image` (String?) and `emailVerified` (DateTime?) — required so
+//     Prisma doesn't throw "Unknown argument" when the adapter's createUser
+//     writes these fields (Google's OAuth profile always supplies `image`).
+//   - `name` relaxed to optional to match the official AdapterUser shape
+//     exactly (Google always sends it in practice, but the adapter's type
+//     allows null).
+//   - `googleId` relaxed to optional and DEPRECATED (see below) rather than
+//     removed, to avoid a destructive migration on a field Phase 0 added
+//     intentionally.
+//
+// googleId decision (kept, deprecated, not dropped):
+//   Its original purpose — matching/creating a user from their Google
+//   identity — is now fully covered by Account.provider + providerAccountId,
+//   which @auth/prisma-adapter manages automatically. Auth.js's adapter has
+//   no knowledge of `googleId` and will never write to it, so as a required
+//   (NOT NULL) column it would make every first-login user creation fail
+//   with a "missing required argument" error. Relaxing it to optional fixes
+//   that with a non-destructive constraint change (DROP NOT NULL — no data
+//   loss, no column removal) instead of dropping the column outright. The
+//   table has zero rows, so either choice is equally safe data-wise; this
+//   one is simply the smaller, fully-reversible change.
 // -----------------------------------------------------------------------------
 
 generator client {
@@ -30,17 +43,65 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  googleId  String   @unique @map("google_id")
-  email     String   @unique
-  name      String
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id            String    @id @default(uuid())
+  /// Deprecated — superseded by Account.provider + providerAccountId. Kept
+  /// nullable rather than dropped; see the schema-file header for why.
+  googleId      String?   @unique @map("google_id")
+  email         String    @unique
+  emailVerified DateTime? @map("email_verified")
+  name          String?
+  image         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   libraryItems LibraryItem[]
   cvLineages   CvLineage[]
+  accounts     Account[]
+  sessions     Session[]
 
   @@map("users")
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
 }
 
 model LibraryItem {
